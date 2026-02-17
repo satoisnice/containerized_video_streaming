@@ -1,0 +1,16 @@
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: 1
+      MYSQL_USER: chud
+      MYSQL_PASSWORD: son
+      MYSQL_DATABASE: video
+    ports:
+      - "3306:3306"
+    volumes:
+      - my-db:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d
+volumes:
+  my-db:
+
