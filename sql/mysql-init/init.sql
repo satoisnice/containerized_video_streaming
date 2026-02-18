@@ -1,7 +1,7 @@
 USE video;
 
 CREATE TABLE saved (
-	title VARCHAR(100) NOT NULL,
-	path VARCHAR(100) NOT NULL,
-	primary key(title)
+	id INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
+	title VARCHAR(255) NOT NULL,
+	filename VARCHAR(255) NOT NULL,
 );
