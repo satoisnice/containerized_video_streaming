@@ -1,8 +1,16 @@
 services:
+ 
+  ffs:
+    build: ./fss
+    volumes:
+      - ./mnt/video:/app/data
+    ports:
+      - "8000:8000"
+
   db:
     image: mysql:8.0
     environment:
-      MYSQL_RANDOM_ROOT_PASSWORD: 1
+      MYSQL_RANDOM_ROOT_PASSWORD: rootpass
       MYSQL_USER: chud
       MYSQL_PASSWORD: son
       MYSQL_DATABASE: video

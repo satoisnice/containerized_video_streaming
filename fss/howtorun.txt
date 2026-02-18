@@ -1,0 +1,8 @@
+docker build -t fss .
+
+to user video folder in file system
+docker run -d -p 8000:8000 -v /home/<usr>/Videos:/app/data fss
+
+local to where th docker file is, assumes mnt exists
+docker run -d -p 8000:8000 -v ./mnt/videos:/app/data fss
+
