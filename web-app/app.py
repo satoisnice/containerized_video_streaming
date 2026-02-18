@@ -4,11 +4,11 @@ import os
 
 app = Flask(__name__)
 
-DB_SERVICE_URL = os.environ.get("DB_SERVICE_URL","http://db-service:5002")
-FILESYSTEM_SERVICE_URL = os.environ.get("FILESYSTEM_SERVICE_URL", "http://filesystem-service:5003")
+DB_SERVICE_URL = os.environ.get("DB_SERVICE_URL", "http://db:3306")
+FILESYSTEM_SERVICE_URL = os.environ.get("FILESYSTEM_SERVICE_URL", "http://ffs:8000")
 
 
-# HOME PAGE - Upload Form
+'''Home'''
 @app.route("/", methods=["GET"])
 def index():
     return '''
@@ -22,7 +22,7 @@ def index():
     '''
 
 
-'''VIDEO UPLOAD'''
+'''Upload'''
 @app.route("/upload", methods=["POST"])
 def upload_video():
     video_file = request.files.get("video")
@@ -45,7 +45,7 @@ def upload_video():
     '''
 
 
-'''All Videos'''
+'''Videos'''
 @app.route("/videos", methods=["GET"])
 def list_videos():
     db_resp = requests.get(f"{DB_SERVICE_URL}/videos")
