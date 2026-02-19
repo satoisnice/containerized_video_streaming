@@ -65,7 +65,7 @@ def login():
 def index():
     token = get_token()
     if not is_authenticated(token): return redirect("/login")
-    return '<h2>Portal</h2><form action="/upload" method="post" enctype="multipart/form-data"><input type="file" name="video"><button>Upload</button></form><a href="/videos">Gallery</a>'
+    return '<h2>Video Streaming App</h2><form action="/upload" method="post" enctype="multipart/form-data"><input type="file" name="video"><button>Upload</button></form><a href="/videos">Gallery</a>'
 
 @app.route("/upload", methods=["POST"])
 def upload():

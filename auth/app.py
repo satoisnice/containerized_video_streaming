@@ -3,7 +3,7 @@ import jwt
 import datetime
 
 app = Flask(__name__)
-SECRET_KEY = "your_super_secret_key"
+SECRET_KEY = "meowmeowmeow"
 
 USERS = {"admin": "password"}
 
