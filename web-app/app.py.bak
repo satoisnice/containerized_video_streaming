@@ -1,0 +1,113 @@
+from flask import Flask, request, jsonify, send_file, redirect
+import requests
+import os
+
+app = Flask(__name__)
+
+DB_SERVICE_URL = os.environ.get("DB_SERVICE_URL", "http://db:3306")
+FILESYSTEM_SERVICE_URL = os.environ.get("FILESYSTEM_SERVICE_URL", "http://ffs:8000")
+KEYCLOAK_URL=os.environ.get("KEYCLOAK_URL", "http://auth:8080/realms/VideoSystem/protocol/openid-connect/userinfo")
+
+def is_authenticated(auth_header):
+    if not auth_header:
+        return False
+    try:
+
+        response = requests.get(KEYCLOAK_URL, headers={"Authorization": auth_header})
+        return response.status_code == 200
+    except:
+        return False
+
+'''Home'''
+@app.route("/", methods=["GET"])
+def index():
+    return '''
+        <h2>Upload Video</h2>
+        <form action="/upload" method="POST" enctype="multipart/form-data">
+            <input type="file" name="video" accept="video/*">
+            <button type="submit">Upload</button>
+        </form>
+        <br>
+        <a href="/videos">View All Videos</a>
+    '''
+
+
+'''Upload'''
+@app.route("/upload", methods=["POST"])
+def upload_video():
+
+    auth_header = request.headers.get("Authorization")
+    if not is_authenticated(request.headers.get("Authorization")):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    video_file = request.files.get("video")
+    video_name = video_file.filename
+
+    fs_resp = requests.post(
+        f"{FILESYSTEM_SERVICE_URL}/upload",
+        files={"file": (video_name, video_file.stream, video_file.mimetype)}
+    )
+    file_path = fs_resp.json().get("path")
+
+    requests.post(
+        f"{DB_SERVICE_URL}/videos",
+        json={"name": video_name, "path": file_path}
+    )
+
+    return redirect(url_for('list_videos'))
+    # return '''
+    #     <h2>Upload Successful!</h2>
+    #     <a href="/">Upload Another</a> | <a href="/videos">View All Videos</a>
+    # '''
+
+
+'''Videos'''
+@app.route("/videos", methods=["GET"])
+def list_videos():
+    auth_header = request.headers.get("Authorization")
+    if not is_authenticated(request.headers.get("Authorization")):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    db_resp = requests.get(f"{DB_SERVICE_URL}/videos")
+    videos = db_resp.json().get("videos", [])
+
+    video_links = "".join(
+        f'<li><a href="/stream/{v["id"]}">{v["name"]}</a></li>'
+        for v in videos
+    )
+
+    return f'''
+        <h2>All Videos</h2>
+        <ul>{video_links}</ul>
+        <br>
+        <a href="/">Upload a Video</a>
+    '''
+
+
+'''Streaming'''
+@app.route("/stream/<int:video_id>", methods=["GET"])
+def stream_video(video_id):
+    auth_header = request.headers.get("Authorization")
+    if not is_authenticated(request.headers.get("Authorization")):
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    db_resp = requests.get(f"{DB_SERVICE_URL}/videos/{video_id}")
+    file_path = db_resp.json().get("path")
+
+    fs_resp = requests.get(
+        f"{FILESYSTEM_SERVICE_URL}/read",
+        params={"path": file_path},
+        stream=True
+    )
+
+    # temp_path = f"temp_{video_id}.mp4"
+    # with open(temp_path, "wb") as f:
+    #     f.write(fs_resp.content)
+
+    # return send_file(temp_path, mimetype="video/mp4")
+
+    return app.response_class(fs_resp.iter_content(chunk_size=1024), mimetype='vide/mp4')
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)

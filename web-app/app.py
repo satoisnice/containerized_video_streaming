@@ -1,86 +1,112 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, Response, render_template_string, redirect, make_response
 import requests
+import mysql.connector
 import os
+import time
 
 app = Flask(__name__)
 
-DB_SERVICE_URL = os.environ.get("DB_SERVICE_URL", "http://db:3306")
+AUTH_SERVICE_URL = os.environ.get("AUTH_SERVICE_URL", "http://auth:8080")
 FILESYSTEM_SERVICE_URL = os.environ.get("FILESYSTEM_SERVICE_URL", "http://ffs:8000")
 
+DB_CONFIG = {
+    "host": "mysql-db",
+    "user": "chud",
+    "password": "son",
+    "database": "video"
+}
 
-'''Home'''
-@app.route("/", methods=["GET"])
+def query_db(query, args=(), one=False):
+    """Helper to run SQL queries"""
+    for i in range(5):
+        try:
+            conn = mysql.connector.connect(**DB_CONFIG)
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(query, args)
+            rv = cursor.fetchall()
+            conn.commit()
+            cursor.close()
+            conn.close()
+            return (rv[0] if rv else None) if one else rv
+        except Exception as e:
+            print(f"DB Error, retrying... {e}")
+            time.sleep(2)
+    return None
+
+def get_token():
+    return request.cookies.get("auth_token") or request.args.get("token")
+
+def is_authenticated(token):
+    if not token: return False
+    try:
+        resp = requests.get(f"{AUTH_SERVICE_URL}/verify", 
+                            headers={"Authorization": f"Bearer {token}"}, timeout=2)
+        return resp.status_code == 200
+    except:
+        return False
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+        try:
+            resp = requests.post(f"{AUTH_SERVICE_URL}/login", json={"username": username, "password": password})
+            if resp.status_code == 200:
+                token = resp.json().get("token")
+                response = make_response(redirect("/"))
+                response.set_cookie("auth_token", token, httponly=True)
+                return response
+        except: pass
+        return "<h2>Invalid Credentials</h2>", 401
+    return '<form method="post">User: <input name="username"><br>Pass: <input name="password" type="password"><br><button>Login</button></form>'
+
+@app.route("/")
 def index():
-    return '''
-        <h2>Upload Video</h2>
-        <form action="/upload" method="POST" enctype="multipart/form-data">
-            <input type="file" name="video" accept="video/*">
-            <button type="submit">Upload</button>
-        </form>
-        <br>
-        <a href="/videos">View All Videos</a>
-    '''
+    token = get_token()
+    if not is_authenticated(token): return redirect("/login")
+    return '<h2>Portal</h2><form action="/upload" method="post" enctype="multipart/form-data"><input type="file" name="video"><button>Upload</button></form><a href="/videos">Gallery</a>'
 
-
-'''Upload'''
 @app.route("/upload", methods=["POST"])
-def upload_video():
-    video_file = request.files.get("video")
-    video_name = video_file.filename
+def upload():
+    token = get_token()
+    if not is_authenticated(token): return redirect("/login")
 
-    fs_resp = requests.post(
-        f"{FILESYSTEM_SERVICE_URL}/upload",
-        files={"file": (video_name, video_file.stream, video_file.mimetype)}
-    )
-    file_path = fs_resp.json().get("path")
+    video_file = request.files.get('video')
+    if not video_file: return "No file", 400
 
-    requests.post(
-        f"{DB_SERVICE_URL}/videos",
-        json={"name": video_name, "path": file_path}
-    )
+    fs_resp = requests.post(f"{FILESYSTEM_SERVICE_URL}/upload/", 
+                            files={"file": (video_file.filename, video_file.stream, video_file.mimetype)})
+    
+    if fs_resp.status_code == 200:
+        file_data = fs_resp.json()
+        query_db("INSERT INTO videos (name, path) VALUES (%s, %s)", 
+                 (file_data["filename"], file_data["filename"]))
+        return redirect("/videos")
+    
+    return "File Upload Failed", 500
 
-    return '''
-        <h2>Upload Successful!</h2>
-        <a href="/">Upload Another</a> | <a href="/videos">View All Videos</a>
-    '''
-
-
-'''Videos'''
-@app.route("/videos", methods=["GET"])
+@app.route("/videos")
 def list_videos():
-    db_resp = requests.get(f"{DB_SERVICE_URL}/videos")
-    videos = db_resp.json().get("videos", [])
+    token = get_token()
+    if not is_authenticated(token): return redirect("/login")
 
-    video_links = "".join(
-        f'<li><a href="/stream/{v["id"]}">{v["name"]}</a></li>'
-        for v in videos
-    )
+    videos = query_db("SELECT name, path FROM videos")
+    
+    if not videos:
+        return "<h2>No videos yet</h2><a href='/'>Back</a>"
 
-    return f'''
-        <h2>All Videos</h2>
-        <ul>{video_links}</ul>
-        <br>
-        <a href="/">Upload a Video</a>
-    '''
+    links = "".join([f'<li><a href="/stream/{v["path"]}">{v["name"]}</a></li>' for v in videos])
+    return f"<h2>Gallery</h2><ul>{links}</ul><a href='/'>Back</a>"
 
-
-'''Streaming'''
-@app.route("/stream/<int:video_id>", methods=["GET"])
-def stream_video(video_id):
-    db_resp = requests.get(f"{DB_SERVICE_URL}/videos/{video_id}")
-    file_path = db_resp.json().get("path")
-
-    fs_resp = requests.get(
-        f"{FILESYSTEM_SERVICE_URL}/read",
-        params={"path": file_path}
-    )
-
-    temp_path = f"temp_{video_id}.mp4"
-    with open(temp_path, "wb") as f:
-        f.write(fs_resp.content)
-
-    return send_file(temp_path, mimetype="video/mp4")
-
+@app.route("/stream/<filename>")
+def stream(filename):
+    token = get_token()
+    if not is_authenticated(token): return redirect("/login")
+    
+    fs_url = f"{FILESYSTEM_SERVICE_URL}/videos/{filename}"
+    fs_resp = requests.get(fs_url, stream=True)
+    return Response(fs_resp.iter_content(chunk_size=1024*1024), mimetype='video/mp4')
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000)
