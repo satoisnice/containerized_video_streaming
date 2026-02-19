@@ -5,7 +5,6 @@ import datetime
 app = Flask(__name__)
 SECRET_KEY = "your_super_secret_key"
 
-# Mock Database
 USERS = {"admin": "password"}
 
 @app.route("/login", methods=["POST"])
@@ -30,7 +29,6 @@ def verify():
         return jsonify({"valid": False}), 401
     
     try:
-        # Remove "Bearer " prefix
         actual_token = token.split(" ")[1]
         jwt.decode(actual_token, SECRET_KEY, algorithms=["HS256"])
         return jsonify({"valid": True})
