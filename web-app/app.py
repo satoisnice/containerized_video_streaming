@@ -65,7 +65,7 @@ def login():
 def index():
     token = get_token()
     if not is_authenticated(token): return redirect("/login")
-    return '<h2>Video Streaming App</h2><form action="/upload" method="post" enctype="multipart/form-data"><input type="file" name="video"><button>Upload</button></form><a href="/videos">Gallery</a>'
+    return '<h2>Video Streaming App</h2><form action="/upload" method="post" enctype="multipart/form-data"><input type="file" name="video"><button>Upload</button></form><a href="/videos">Videos</a>'
 
 @app.route("/upload", methods=["POST"])
 def upload():
@@ -97,7 +97,7 @@ def list_videos():
         return "<h2>No videos yet</h2><a href='/'>Back</a>"
 
     links = "".join([f'<li><a href="/stream/{v["path"]}">{v["name"]}</a></li>' for v in videos])
-    return f"<h2>Gallery</h2><ul>{links}</ul><a href='/'>Back</a>"
+    return f"<h2>Videos</h2><ul>{links}</ul><a href='/'>Back</a>"
 
 @app.route("/stream/<filename>")
 def stream(filename):
