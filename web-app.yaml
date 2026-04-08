@@ -14,8 +14,7 @@ spec:
     spec:
       containers:
         - name: web-app
-          # Replace with your actual image after building and pushing:
-          # e.g. gcr.io/YOUR_PROJECT_ID/web-app:latest
+          
           image: us-central1-docker.pkg.dev/containerized-video-service/video-streaming/web-app:latest
           imagePullPolicy: Always
           ports:

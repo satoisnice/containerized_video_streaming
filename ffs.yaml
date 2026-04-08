@@ -14,8 +14,7 @@ spec:
     spec:
       containers:
         - name: ffs
-          # Replace with your actual image after building and pushing:
-          # e.g. gcr.io/YOUR_PROJECT_ID/ffs:latest
+          
           image: us-central1-docker.pkg.dev/containerized-video-service/video-streaming/ffs:latest
           imagePullPolicy: Always
           ports:
