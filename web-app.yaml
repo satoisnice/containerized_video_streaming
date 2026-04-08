@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web-app
+  template:
+    metadata:
+      labels:
+        app: web-app
+    spec:
+      containers:
+        - name: web-app
+          # Replace with your actual image after building and pushing:
+          # e.g. gcr.io/YOUR_PROJECT_ID/web-app:latest
+          image: us-central1-docker.pkg.dev/containerized-video-service/video-streaming/web-app:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5000
+          env:
+            - name: AUTH_SERVICE_URL
+              value: "http://auth:8080"
+            - name: DB_SERVICE_URL
+              value: "http://mysql-db:3306"
+            - name: FILESYSTEM_SERVICE_URL
+              value: "http://ffs:8000"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+
+---
+# External LoadBalancer – this is how you access the app from the internet.
+# GKE will provision a public IP. Run:
+#   kubectl get service web-app
+# and wait for EXTERNAL-IP to appear (takes ~2 min).
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-app
+spec:
+  selector:
+    app: web-app
+  ports:
+    - port: 80
+      targetPort: 5000
+  type: LoadBalancer
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: web-app-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: web-app
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
